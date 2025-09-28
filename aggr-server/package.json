@@ -1,0 +1,50 @@
+{
+  "name": "aggr-server",
+  "version": "1.2.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "pm2-runtime ecosystem.config.js",
+    "dev": "pm2-dev ecosystem.config.dev.yaml",
+    "generateVapidKeys": "node scripts/web-push/generateVapidKeys",
+    "lint:fix": "npx prettier index.js ./src/* --write",
+    "clean": "rm -rf node-modules && npm clean cache --force",
+    "docker:server:build": "docker-compose build",
+    "docker:server:up": "docker-compose up -d"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tucsky/aggr-server.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Tucsky/aggr-server/issues"
+  },
+  "homepage": "https://github.com/Tucsky/aggr-server#readme",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "body-parser": "^1.19.1",
+    "cors": "^2.8.5",
+    "decamelize": "^4.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.17.1",
+    "express-rate-limit": "^5.1.1",
+    "influx": "^5.9.3",
+    "jsoning": "^0.13.23",
+    "pako": "^1.0.11",
+    "pm2": "^5.3.0",
+    "tx2": "^1.0.5",
+    "uuid": "^9.0.0",
+    "web-push": "^3.4.5",
+    "websocket": "^1.0.34",
+    "ws": "^5.0.0"
+  },
+  "volta": {
+    "node": "20.5.0",
+    "npm": "9.8.0"
+  },
+  "devDependencies": {
+    "prettier": "3.0.2"
+  }
+}
