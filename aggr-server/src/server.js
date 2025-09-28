@@ -469,6 +469,51 @@ class Server extends EventEmitter {
       }
     )
 
+    app.get('/orderbook/:exchange/:pair', async (req, res) => {
+      try {
+        const { exchange, pair } = req.params
+        const limit = req.query.limit ? parseInt(req.query.limit) : 50
+        
+        console.log(`[API] Order book request: ${exchange}:${pair} (limit: ${limit})`)
+        
+        if (!config.api || !this.storages) {
+          return res.status(501).json({
+            error: 'no storage'
+          })
+        }
+
+        const influxIndex = config.storage.indexOf('influx')
+        const storage = influxIndex >= 0 ? this.storages[influxIndex] : null
+        
+        if (!storage || !storage.getOrderBook) {
+          return res.status(501).json({
+            error: 'orderbook not supported'
+          })
+        }
+
+        const orderBook = await storage.getOrderBook(exchange.toUpperCase(), pair.toLowerCase(), parseInt(limit))
+        
+        if (!orderBook) {
+          const availablePairs = await storage.getAvailableOrderBookPairs()
+          return res.status(404).json({
+            error: 'Order book not found',
+            exchange: exchange.toUpperCase(),
+            pair: pair.toLowerCase(),
+            available: availablePairs
+          })
+        }
+
+        res.json(orderBook)
+        
+      } catch (error) {
+        console.error(`[Server] Error fetching order book:`, error)
+        res.status(500).json({
+          error: 'Internal server error',
+          message: error.message
+        })
+      }
+    })
+
     app.use(function (err, req, res, next) {
       if (err) {
         console.error(err)
@@ -518,6 +563,12 @@ class Server extends EventEmitter {
     this.chunk = []
 
     for (const exchange of this.exchanges) {
+      // Passer influxStorage à chaque exchange
+      const influxIndex = config.storage.indexOf('influx')
+      if (influxIndex >= 0) {
+        exchange.influxStorage = this.storages[influxIndex]
+      }
+
       const exchangePairs = config.pairs.filter(
         pair =>
           pair.indexOf(':') === -1 ||
@@ -530,6 +581,9 @@ class Server extends EventEmitter {
 
       exchange.getProductsAndConnect(exchangePairs)
     }
+
+    // Démarrer la collecte Order Book
+    this.startOrderBookCollection()
   }
 
   async connect(markets) {
@@ -865,6 +919,28 @@ class Server extends EventEmitter {
     }
 
     throw new Error(`alert not found for user ${user}`)
+  }
+
+  async startOrderBookCollection() {
+    console.log('[server] - Starting order book collection')
+    
+    const orderBookPairs = ['btcusdt', 'ethusdt'] // Pairs configurées
+    
+    for (const pair of orderBookPairs) {
+      const exchange = this.exchanges.find(e => e.id === 'BINANCE')
+      if (exchange && exchange.initializeOrderBook) {
+        try {
+          // Délai pour éviter la surcharge API
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          await exchange.initializeOrderBook(pair)
+          console.log(`[server] - Order book initialized for ${pair.toUpperCase()}`)
+        } catch (error) {
+          console.error(`[server] - Failed to initialize order book for ${pair}:`, error)
+        }
+      }
+    }
+    
+    console.log(`[server] - Order book collection started for pairs: ${orderBookPairs.map(p => p.toUpperCase()).join(', ')}`)
   }
 }
 

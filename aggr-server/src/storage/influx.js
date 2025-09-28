@@ -62,7 +62,17 @@ class InfluxStorage {
       this.influx = new Influx.InfluxDB({
         host: host || 'localhost',
         port: port || '8086',
-        database: config.influxDatabase
+        database: config.influxDatabase,
+        schema: [
+          {
+            measurement: 'orderbook',
+            fields: {
+              price: Influx.FieldType.FLOAT,
+              size: Influx.FieldType.FLOAT
+            },
+            tags: ['market', 'side']
+          }
+        ]
       })
 
       const databases = await this.influx.getDatabaseNames()
@@ -1099,6 +1109,99 @@ class InfluxStorage {
       acc[name] = index
       return acc
     }, {})
+  }
+
+  /**
+   * Stocke un Order Book (logique AGGR exacte)
+   */
+  async writeOrderBook(orderBookData) {
+    const points = []
+    const market = `${orderBookData.exchange}:${orderBookData.pair}`
+
+    // Convertir les bids en points InfluxDB
+    orderBookData.bids.forEach((bid) => {
+      const priceBasedTimestamp = Math.floor(bid.price * 1000)
+      points.push({
+        measurement: 'orderbook',
+        tags: { market, side: 'bid' },
+        fields: { price: bid.price, size: bid.size },
+        timestamp: priceBasedTimestamp
+      })
+    })
+
+    // Convertir les asks en points InfluxDB
+    orderBookData.asks.forEach((ask) => {
+      const priceBasedTimestamp = Math.floor(ask.price * 1000)
+      points.push({
+        measurement: 'orderbook', 
+        tags: { market, side: 'ask' },
+        fields: { price: ask.price, size: ask.size },
+        timestamp: priceBasedTimestamp
+      })
+    })
+
+    if (points.length > 0) {
+      await this.influx.writePoints(points, { precision: 'ms' })
+    }
+  }
+
+  /**
+   * Récupère un Order Book depuis InfluxDB
+   */
+  async getOrderBook(exchange, pair, limit = 50) {
+    const market = `${exchange.toUpperCase()}:${pair.toLowerCase()}`
+    
+    const query = `
+      SELECT price, size, side
+      FROM orderbook 
+      WHERE market = '${market}' AND size > 0
+    `
+    
+    try {
+      const results = await this.influx.query(query)
+      const bids = results.filter(r => r.side === 'bid')
+      const asks = results.filter(r => r.side === 'ask')
+      
+      if (bids.length > 0 || asks.length > 0) {
+        // ✅ TRI EN JAVASCRIPT (pas en SQL)
+        const sortedBids = bids
+          .map(r => ({price: Number(r.price), size: Number(r.size)}))
+          .sort((a, b) => b.price - a.price)  // Décroissant
+          .slice(0, limit || bids.length)
+        
+        const sortedAsks = asks
+          .map(r => ({price: Number(r.price), size: Number(r.size)}))
+          .sort((a, b) => a.price - b.price)  // Croissant
+          .slice(0, limit || asks.length)
+        
+        return {
+          exchange: exchange.toUpperCase(), 
+          pair: pair.toLowerCase(), 
+          timestamp: Date.now(),
+          bids: sortedBids,
+          asks: sortedAsks
+        }
+      } else {
+        return null
+      }
+    } catch (error) {
+      console.error(`[InfluxDB] Failed to get order book for ${market}:`, error.message)
+      return null
+    }
+  }
+
+  /**
+   * Récupère les paires disponibles pour Order Book
+   */
+  async getAvailableOrderBookPairs() {
+    try {
+      const query = `SHOW TAG VALUES FROM orderbook WITH KEY = "market"`
+      const results = await this.influx.query(query)
+      return results.map(r => r.value)
+    } catch (error) {
+      console.error(`[InfluxDB] Error getting available pairs:`, error)
+      return []
+    }
   }
 }
 
