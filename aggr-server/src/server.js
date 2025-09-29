@@ -514,6 +514,9 @@ class Server extends EventEmitter {
       }
     })
 
+    // Routes de liquidité
+    this.setupLiquidityRoutes(app)
+
     app.use(function (err, req, res, next) {
       if (err) {
         console.error(err)
@@ -584,6 +587,9 @@ class Server extends EventEmitter {
 
     // Démarrer la collecte Order Book
     this.startOrderBookCollection()
+    
+    // Démarrer le scheduler de liquidité
+    this.startLiquidityScheduler()
   }
 
   async connect(markets) {
@@ -941,6 +947,339 @@ class Server extends EventEmitter {
     }
     
     console.log(`[server] - Order book collection started for pairs: ${orderBookPairs.map(p => p.toUpperCase()).join(', ')}`)
+  }
+
+  /**
+   * Démarre le scheduler de liquidité
+   */
+  async startLiquidityScheduler() {
+    const LiquidityScheduler = require('./services/liquidityScheduler')
+    
+    console.log('[server] - Starting liquidity scheduler...')
+    
+    // Trouver le storage InfluxDB
+    const influxIndex = config.storage.indexOf('influx')
+    if (influxIndex === -1) {
+      console.warn('[server] - InfluxDB storage not configured, skipping liquidity scheduler')
+      return
+    }
+    
+    const influxStorage = this.storages[influxIndex]
+    if (!influxStorage) {
+      console.warn('[server] - InfluxDB storage not available, skipping liquidity scheduler')
+      return
+    }
+    
+    // Créer et démarrer le scheduler
+    this.liquidityScheduler = new LiquidityScheduler(this.exchanges, influxStorage)
+    this.liquidityScheduler.startScheduler()
+    
+    console.log('[server] - Liquidity scheduler started successfully')
+  }
+
+  /**
+   * Configure les routes de liquidité
+   */
+  setupLiquidityRoutes(app) {
+    // Middleware de validation des pourcentages
+    const validatePercentage = (req, res, next) => {
+      const percent = req.query.percent ? parseFloat(req.query.percent) : null
+      
+      // Générer les pourcentages supportés (0.5% à 30% par 0.5%)
+      const supportedPercentages = []
+      for (let i = 0.5; i <= 30; i += 0.5) {
+        supportedPercentages.push(i)
+      }
+      
+      if (percent !== null && !supportedPercentages.includes(percent)) {
+        return res.status(400).json({
+          error: 'Invalid percentage',
+          provided: percent,
+          supported: supportedPercentages,
+          message: 'Percentage must be between 0.5% and 30% with 0.5% increments'
+        })
+      }
+      
+      req.validatedPercent = percent
+      next()
+    }
+
+    // Route: GET /liquidity/:exchange/:pair/bid_sum
+    app.get('/liquidity/:exchange/:pair/bid_sum', validatePercentage, async (req, res) => {
+      const { exchange, pair } = req.params
+      const percent = req.validatedPercent
+      
+      try {
+        console.log(`[API] Bid sum request for ${exchange}:${pair}${percent ? ` (${percent}%)` : ''}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const data = await influxStorage.getLiquidityData(exchange, pair)
+        if (!data) {
+          return res.status(404).json({ 
+            error: 'No liquidity data found',
+            exchange: exchange.toUpperCase(),
+            pair: pair.toLowerCase()
+          })
+        }
+        
+        const bidSum = percent ? data[`bid_sum_${percent}pct`] : data.bid_sum_total
+        
+        res.json({
+          bid_sum: bidSum || 0,
+          percent: percent,
+          timestamp: new Date(data.time || data.timestamp || Date.now()).toISOString()
+        })
+        
+      } catch (error) {
+        console.error(`[API] Error fetching bid sum:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity/:exchange/:pair/ask_sum
+    app.get('/liquidity/:exchange/:pair/ask_sum', validatePercentage, async (req, res) => {
+      const { exchange, pair } = req.params
+      const percent = req.validatedPercent
+      
+      try {
+        console.log(`[API] Ask sum request for ${exchange}:${pair}${percent ? ` (${percent}%)` : ''}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const data = await influxStorage.getLiquidityData(exchange, pair)
+        if (!data) {
+          return res.status(404).json({ 
+            error: 'No liquidity data found',
+            exchange: exchange.toUpperCase(),
+            pair: pair.toLowerCase()
+          })
+        }
+        
+        const askSum = percent ? data[`ask_sum_${percent}pct`] : data.ask_sum_total
+        
+        res.json({
+          ask_sum: askSum || 0,
+          percent: percent,
+          timestamp: new Date(data.time || data.timestamp || Date.now()).toISOString()
+        })
+        
+      } catch (error) {
+        console.error(`[API] Error fetching ask sum:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity/:exchange/:pair
+    app.get('/liquidity/:exchange/:pair', async (req, res) => {
+      const { exchange, pair } = req.params
+      
+      try {
+        console.log(`[API] Full liquidity request for ${exchange}:${pair}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const data = await influxStorage.getLiquidityData(exchange, pair)
+        if (!data) {
+          return res.status(404).json({ 
+            error: 'No liquidity data found',
+            exchange: exchange.toUpperCase(),
+            pair: pair.toLowerCase()
+          })
+        }
+        
+        res.json(data)
+        
+      } catch (error) {
+        console.error(`[API] Error fetching liquidity data:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity/:exchange/:pair/history
+    app.get('/liquidity/:exchange/:pair/history', validatePercentage, async (req, res) => {
+      const { exchange, pair } = req.params
+      const percent = req.validatedPercent
+      const minutes = parseInt(req.query.minutes) || 1440 // 24h par défaut
+      
+      try {
+        console.log(`[API] Liquidity history request for ${exchange}:${pair} (${minutes}min)${percent ? ` (${percent}%)` : ''}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const historyData = await influxStorage.getLiquidityHistory(exchange, pair, minutes, percent)
+        
+        res.json({
+          exchange: exchange.toUpperCase(),
+          pair: pair.toLowerCase(),
+          percent: percent,
+          minutes: minutes,
+          ...historyData
+        })
+        
+      } catch (error) {
+        console.error(`[API] Error fetching liquidity history:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity/percentages
+    app.get('/liquidity/percentages', (req, res) => {
+      const supportedPercentages = []
+      for (let i = 0.5; i <= 30; i += 0.5) {
+        supportedPercentages.push(i)
+      }
+      
+      res.json({
+        supported_percentages: supportedPercentages,
+        total_levels: supportedPercentages.length,
+        range: '0.5% to 30% by 0.5% increments'
+      })
+    })
+
+    // Route: GET /liquidity-bulk-history/:hours - Get all liquidity data for specified hours
+    app.get('/liquidity-bulk-history/:hours', async (req, res) => {
+      const hours = parseInt(req.params.hours) || 24
+      
+      try {
+        // Validation
+        if (isNaN(hours) || hours <= 0 || hours > 168) { // Max 7 days
+          return res.status(400).json({
+            error: 'Invalid hours parameter',
+            provided: req.params.hours,
+            message: 'Hours must be between 1 and 168 (7 days)'
+          })
+        }
+        
+        console.log(`[API] Bulk history request for ${hours} hours`)
+        
+        if (!config.api || !this.storages) {
+          return res.status(501).json({
+            error: 'no storage'
+          })
+        }
+
+        const influxIndex = config.storage.indexOf('influx')
+        const storage = influxIndex >= 0 ? this.storages[influxIndex] : null
+        
+        if (!storage || !storage.influx) {
+          return res.status(503).json({ error: 'InfluxDB not available' })
+        }
+        
+        const query = `
+          SELECT * FROM liquidity_sums 
+          WHERE time >= now() - ${hours}h 
+          ORDER BY time ASC
+        `
+        
+        const results = await storage.influx.query(query)
+        
+        console.log(`[API] Bulk history returned ${results.length} records for ${hours}h`)
+        res.json(results)
+        
+      } catch (error) {
+        console.error(`[API] Error fetching bulk history:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity-by-timestamp/:timestamp - Get liquidity data for specific timestamp
+    app.get('/liquidity-by-timestamp/:timestamp', async (req, res) => {
+      const timestamp = parseInt(req.params.timestamp)
+      const exchange = req.query.exchange || 'BINANCE'
+      const pair = req.query.pair || 'BTCUSDT'
+      
+      try {
+        if (isNaN(timestamp) || timestamp <= 0) {
+          return res.status(400).json({
+            error: 'Invalid timestamp parameter',
+            provided: req.params.timestamp,
+            message: 'Timestamp must be a valid number'
+          })
+        }
+        
+        console.log(`[API] Liquidity by timestamp request: ${exchange}:${pair} at ${new Date(timestamp).toISOString()}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const data = await influxStorage.getLiquidityDataByTimestamp(exchange, pair, timestamp)
+        if (!data) {
+          return res.status(404).json({ 
+            error: 'No liquidity data found for timestamp',
+            exchange: exchange.toUpperCase(),
+            pair: pair.toLowerCase(),
+            timestamp: timestamp
+          })
+        }
+        
+        res.json(data)
+        
+      } catch (error) {
+        console.error(`[API] Error fetching liquidity by timestamp:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    // Route: GET /liquidity-bulk-range/:from/:to - Get liquidity data for timestamp range
+    app.get('/liquidity-bulk-range/:from/:to', async (req, res) => {
+      const fromTimestamp = parseInt(req.params.from)
+      const toTimestamp = parseInt(req.params.to)
+      const exchange = req.query.exchange || 'BINANCE'
+      const pair = req.query.pair || 'BTCUSDT'
+      
+      try {
+        if (isNaN(fromTimestamp) || isNaN(toTimestamp) || fromTimestamp >= toTimestamp) {
+          return res.status(400).json({
+            error: 'Invalid timestamp range',
+            provided: { from: req.params.from, to: req.params.to },
+            message: 'From and to must be valid timestamps with from < to'
+          })
+        }
+        
+        // Limite de 24h pour éviter les requêtes trop lourdes
+        const maxRange = 24 * 60 * 60 * 1000 // 24 heures
+        if (toTimestamp - fromTimestamp > maxRange) {
+          return res.status(400).json({
+            error: 'Range too large',
+            maxRange: '24 hours',
+            provided: `${Math.round((toTimestamp - fromTimestamp) / (60 * 60 * 1000))} hours`
+          })
+        }
+        
+        console.log(`[API] Liquidity bulk range request: ${exchange}:${pair} from ${new Date(fromTimestamp).toISOString()} to ${new Date(toTimestamp).toISOString()}`)
+        
+        const influxStorage = this.storages ? this.storages.find(s => s.constructor.name === 'InfluxStorage') : null
+        if (!influxStorage) {
+          return res.status(503).json({ error: 'InfluxDB storage not available' })
+        }
+        
+        const data = await influxStorage.getLiquidityDataByRange(exchange, pair, fromTimestamp, toTimestamp)
+        
+        console.log(`[API] Bulk range returned ${data.length} records`)
+        res.json(data)
+        
+      } catch (error) {
+        console.error(`[API] Error fetching liquidity bulk range:`, error)
+        res.status(500).json({ error: error.message })
+      }
+    })
+
+    console.log('[server] - Liquidity routes configured')
   }
 }
 
