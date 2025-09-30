@@ -62,7 +62,148 @@ class InfluxStorage {
       this.influx = new Influx.InfluxDB({
         host: host || 'localhost',
         port: port || '8086',
-        database: config.influxDatabase
+        database: config.influxDatabase,
+        schema: [
+          {
+            measurement: 'orderbook',
+            fields: {
+              price: Influx.FieldType.FLOAT,
+              size: Influx.FieldType.FLOAT
+            },
+            tags: ['market', 'side']
+          },
+          {
+            measurement: 'liquidity_sums',
+            fields: {
+              bid_sum_total: Influx.FieldType.FLOAT,
+              ask_sum_total: Influx.FieldType.FLOAT,
+              mid_price: Influx.FieldType.FLOAT,
+              // 60 niveaux de profondeur pour bids (0.5% à 30% par 0.5%)
+              bid_sum_0_5pct: Influx.FieldType.FLOAT,
+              bid_sum_1pct: Influx.FieldType.FLOAT,
+              bid_sum_1_5pct: Influx.FieldType.FLOAT,
+              bid_sum_2pct: Influx.FieldType.FLOAT,
+              bid_sum_2_5pct: Influx.FieldType.FLOAT,
+              bid_sum_3pct: Influx.FieldType.FLOAT,
+              bid_sum_3_5pct: Influx.FieldType.FLOAT,
+              bid_sum_4pct: Influx.FieldType.FLOAT,
+              bid_sum_4_5pct: Influx.FieldType.FLOAT,
+              bid_sum_5pct: Influx.FieldType.FLOAT,
+              bid_sum_5_5pct: Influx.FieldType.FLOAT,
+              bid_sum_6pct: Influx.FieldType.FLOAT,
+              bid_sum_6_5pct: Influx.FieldType.FLOAT,
+              bid_sum_7pct: Influx.FieldType.FLOAT,
+              bid_sum_7_5pct: Influx.FieldType.FLOAT,
+              bid_sum_8pct: Influx.FieldType.FLOAT,
+              bid_sum_8_5pct: Influx.FieldType.FLOAT,
+              bid_sum_9pct: Influx.FieldType.FLOAT,
+              bid_sum_9_5pct: Influx.FieldType.FLOAT,
+              bid_sum_10pct: Influx.FieldType.FLOAT,
+              bid_sum_10_5pct: Influx.FieldType.FLOAT,
+              bid_sum_11pct: Influx.FieldType.FLOAT,
+              bid_sum_11_5pct: Influx.FieldType.FLOAT,
+              bid_sum_12pct: Influx.FieldType.FLOAT,
+              bid_sum_12_5pct: Influx.FieldType.FLOAT,
+              bid_sum_13pct: Influx.FieldType.FLOAT,
+              bid_sum_13_5pct: Influx.FieldType.FLOAT,
+              bid_sum_14pct: Influx.FieldType.FLOAT,
+              bid_sum_14_5pct: Influx.FieldType.FLOAT,
+              bid_sum_15pct: Influx.FieldType.FLOAT,
+              bid_sum_15_5pct: Influx.FieldType.FLOAT,
+              bid_sum_16pct: Influx.FieldType.FLOAT,
+              bid_sum_16_5pct: Influx.FieldType.FLOAT,
+              bid_sum_17pct: Influx.FieldType.FLOAT,
+              bid_sum_17_5pct: Influx.FieldType.FLOAT,
+              bid_sum_18pct: Influx.FieldType.FLOAT,
+              bid_sum_18_5pct: Influx.FieldType.FLOAT,
+              bid_sum_19pct: Influx.FieldType.FLOAT,
+              bid_sum_19_5pct: Influx.FieldType.FLOAT,
+              bid_sum_20pct: Influx.FieldType.FLOAT,
+              bid_sum_20_5pct: Influx.FieldType.FLOAT,
+              bid_sum_21pct: Influx.FieldType.FLOAT,
+              bid_sum_21_5pct: Influx.FieldType.FLOAT,
+              bid_sum_22pct: Influx.FieldType.FLOAT,
+              bid_sum_22_5pct: Influx.FieldType.FLOAT,
+              bid_sum_23pct: Influx.FieldType.FLOAT,
+              bid_sum_23_5pct: Influx.FieldType.FLOAT,
+              bid_sum_24pct: Influx.FieldType.FLOAT,
+              bid_sum_24_5pct: Influx.FieldType.FLOAT,
+              bid_sum_25pct: Influx.FieldType.FLOAT,
+              bid_sum_25_5pct: Influx.FieldType.FLOAT,
+              bid_sum_26pct: Influx.FieldType.FLOAT,
+              bid_sum_26_5pct: Influx.FieldType.FLOAT,
+              bid_sum_27pct: Influx.FieldType.FLOAT,
+              bid_sum_27_5pct: Influx.FieldType.FLOAT,
+              bid_sum_28pct: Influx.FieldType.FLOAT,
+              bid_sum_28_5pct: Influx.FieldType.FLOAT,
+              bid_sum_29pct: Influx.FieldType.FLOAT,
+              bid_sum_29_5pct: Influx.FieldType.FLOAT,
+              bid_sum_30pct: Influx.FieldType.FLOAT,
+              // 60 niveaux de profondeur pour asks (0.5% à 30% par 0.5%)
+              ask_sum_0_5pct: Influx.FieldType.FLOAT,
+              ask_sum_1pct: Influx.FieldType.FLOAT,
+              ask_sum_1_5pct: Influx.FieldType.FLOAT,
+              ask_sum_2pct: Influx.FieldType.FLOAT,
+              ask_sum_2_5pct: Influx.FieldType.FLOAT,
+              ask_sum_3pct: Influx.FieldType.FLOAT,
+              ask_sum_3_5pct: Influx.FieldType.FLOAT,
+              ask_sum_4pct: Influx.FieldType.FLOAT,
+              ask_sum_4_5pct: Influx.FieldType.FLOAT,
+              ask_sum_5pct: Influx.FieldType.FLOAT,
+              ask_sum_5_5pct: Influx.FieldType.FLOAT,
+              ask_sum_6pct: Influx.FieldType.FLOAT,
+              ask_sum_6_5pct: Influx.FieldType.FLOAT,
+              ask_sum_7pct: Influx.FieldType.FLOAT,
+              ask_sum_7_5pct: Influx.FieldType.FLOAT,
+              ask_sum_8pct: Influx.FieldType.FLOAT,
+              ask_sum_8_5pct: Influx.FieldType.FLOAT,
+              ask_sum_9pct: Influx.FieldType.FLOAT,
+              ask_sum_9_5pct: Influx.FieldType.FLOAT,
+              ask_sum_10pct: Influx.FieldType.FLOAT,
+              ask_sum_10_5pct: Influx.FieldType.FLOAT,
+              ask_sum_11pct: Influx.FieldType.FLOAT,
+              ask_sum_11_5pct: Influx.FieldType.FLOAT,
+              ask_sum_12pct: Influx.FieldType.FLOAT,
+              ask_sum_12_5pct: Influx.FieldType.FLOAT,
+              ask_sum_13pct: Influx.FieldType.FLOAT,
+              ask_sum_13_5pct: Influx.FieldType.FLOAT,
+              ask_sum_14pct: Influx.FieldType.FLOAT,
+              ask_sum_14_5pct: Influx.FieldType.FLOAT,
+              ask_sum_15pct: Influx.FieldType.FLOAT,
+              ask_sum_15_5pct: Influx.FieldType.FLOAT,
+              ask_sum_16pct: Influx.FieldType.FLOAT,
+              ask_sum_16_5pct: Influx.FieldType.FLOAT,
+              ask_sum_17pct: Influx.FieldType.FLOAT,
+              ask_sum_17_5pct: Influx.FieldType.FLOAT,
+              ask_sum_18pct: Influx.FieldType.FLOAT,
+              ask_sum_18_5pct: Influx.FieldType.FLOAT,
+              ask_sum_19pct: Influx.FieldType.FLOAT,
+              ask_sum_19_5pct: Influx.FieldType.FLOAT,
+              ask_sum_20pct: Influx.FieldType.FLOAT,
+              ask_sum_20_5pct: Influx.FieldType.FLOAT,
+              ask_sum_21pct: Influx.FieldType.FLOAT,
+              ask_sum_21_5pct: Influx.FieldType.FLOAT,
+              ask_sum_22pct: Influx.FieldType.FLOAT,
+              ask_sum_22_5pct: Influx.FieldType.FLOAT,
+              ask_sum_23pct: Influx.FieldType.FLOAT,
+              ask_sum_23_5pct: Influx.FieldType.FLOAT,
+              ask_sum_24pct: Influx.FieldType.FLOAT,
+              ask_sum_24_5pct: Influx.FieldType.FLOAT,
+              ask_sum_25pct: Influx.FieldType.FLOAT,
+              ask_sum_25_5pct: Influx.FieldType.FLOAT,
+              ask_sum_26pct: Influx.FieldType.FLOAT,
+              ask_sum_26_5pct: Influx.FieldType.FLOAT,
+              ask_sum_27pct: Influx.FieldType.FLOAT,
+              ask_sum_27_5pct: Influx.FieldType.FLOAT,
+              ask_sum_28pct: Influx.FieldType.FLOAT,
+              ask_sum_28_5pct: Influx.FieldType.FLOAT,
+              ask_sum_29pct: Influx.FieldType.FLOAT,
+              ask_sum_29_5pct: Influx.FieldType.FLOAT,
+              ask_sum_30pct: Influx.FieldType.FLOAT
+            },
+            tags: ['exchange', 'pair']
+          }
+        ]
       })
 
       const databases = await this.influx.getDatabaseNames()
@@ -1099,6 +1240,452 @@ class InfluxStorage {
       acc[name] = index
       return acc
     }, {})
+  }
+
+  /**
+   * Stocke un Order Book (logique AGGR exacte)
+   */
+  async writeOrderBook(orderBookData) {
+    const points = []
+    const market = `${orderBookData.exchange}:${orderBookData.pair}`
+
+    // Convertir les bids en points InfluxDB
+    orderBookData.bids.forEach((bid) => {
+      const priceBasedTimestamp = Math.floor(bid.price * 1000)
+      points.push({
+        measurement: 'orderbook',
+        tags: { market, side: 'bid' },
+        fields: { price: bid.price, size: bid.size },
+        timestamp: priceBasedTimestamp
+      })
+    })
+
+    // Convertir les asks en points InfluxDB
+    orderBookData.asks.forEach((ask) => {
+      const priceBasedTimestamp = Math.floor(ask.price * 1000)
+      points.push({
+        measurement: 'orderbook', 
+        tags: { market, side: 'ask' },
+        fields: { price: ask.price, size: ask.size },
+        timestamp: priceBasedTimestamp
+      })
+    })
+
+    if (points.length > 0) {
+      await this.influx.writePoints(points, { precision: 'ms' })
+    }
+  }
+
+  /**
+   * Récupère un Order Book depuis InfluxDB
+   */
+  async getOrderBook(exchange, pair, limit = 50) {
+    const market = `${exchange.toUpperCase()}:${pair.toLowerCase()}`
+    
+    const query = `
+      SELECT price, size, side
+      FROM orderbook 
+      WHERE market = '${market}' AND size > 0
+    `
+    
+    try {
+      const results = await this.influx.query(query)
+      const bids = results.filter(r => r.side === 'bid')
+      const asks = results.filter(r => r.side === 'ask')
+      
+      if (bids.length > 0 || asks.length > 0) {
+        // ✅ TRI EN JAVASCRIPT (pas en SQL)
+        const sortedBids = bids
+          .map(r => ({price: Number(r.price), size: Number(r.size)}))
+          .sort((a, b) => b.price - a.price)  // Décroissant
+          .slice(0, limit || bids.length)
+        
+        const sortedAsks = asks
+          .map(r => ({price: Number(r.price), size: Number(r.size)}))
+          .sort((a, b) => a.price - b.price)  // Croissant
+          .slice(0, limit || asks.length)
+        
+        return {
+          exchange: exchange.toUpperCase(), 
+          pair: pair.toLowerCase(), 
+          timestamp: Date.now(),
+          bids: sortedBids,
+          asks: sortedAsks
+        }
+      } else {
+        return null
+      }
+    } catch (error) {
+      console.error(`[InfluxDB] Failed to get order book for ${market}:`, error.message)
+      return null
+    }
+  }
+
+  /**
+   * Récupère les paires disponibles pour Order Book
+   */
+  async getAvailableOrderBookPairs() {
+    try {
+      const query = `SHOW TAG VALUES FROM orderbook WITH KEY = "market"`
+      const results = await this.influx.query(query)
+      return results.map(r => r.value)
+    } catch (error) {
+      console.error(`[InfluxDB] Error getting available pairs:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Écrit les données de liquidité dans InfluxDB
+   * @param {string} exchange - Nom de l'exchange (ex: 'BINANCE')
+   * @param {string} pair - Paire de trading (ex: 'btcusdt')
+   * @param {number} timestamp - Timestamp en millisecondes
+   * @param {Object} liquidityData - Données calculées par LiquidityCalculator
+   */
+  async writeLiquidityData(exchange, pair, timestamp, liquidityData) {
+    // Générer les pourcentages supportés (0.5% à 30% par 0.5%)
+    const supportedPercentages = []
+    for (let i = 0.5; i <= 30; i += 0.5) {
+      supportedPercentages.push(i)
+    }
+
+    // Construire les champs pour InfluxDB
+    const fields = {
+      // Totaux
+      bid_sum_total: liquidityData.bid_sum_total || 0,
+      ask_sum_total: liquidityData.ask_sum_total || 0,
+      mid_price: liquidityData.mid_price || 0
+    }
+
+    // Ajouter tous les pourcentages
+    for (const percent of supportedPercentages) {
+      // Convertir le pourcentage en nom de champ valide (remplacer . par _)
+      const fieldSuffix = percent.toString().replace('.', '_') + 'pct'
+      const influxBidKey = `bid_sum_${fieldSuffix}`
+      const influxAskKey = `ask_sum_${fieldSuffix}`
+      
+      // Les données viennent avec le format original (avec point)
+      const dataBidKey = `bid_sum_${percent}pct`
+      const dataAskKey = `ask_sum_${percent}pct`
+      
+      fields[influxBidKey] = liquidityData[dataBidKey] || 0
+      fields[influxAskKey] = liquidityData[dataAskKey] || 0
+    }
+
+    // Point InfluxDB
+    const point = {
+      measurement: 'liquidity_sums',
+      timestamp: timestamp,
+      tags: {
+        exchange: exchange.toUpperCase(),
+        pair: pair.toLowerCase()
+      },
+      fields: fields
+    }
+
+    // Écrire dans InfluxDB avec précision milliseconde
+    await this.writePoints([point], { precision: 'ms' })
+    
+    console.log(`[InfluxDB] Wrote liquidity data for ${exchange}:${pair} with ${supportedPercentages.length * 2 + 3} fields`)
+  }
+
+  /**
+   * Récupère les données de liquidité depuis InfluxDB
+   * @param {string} exchange - Nom de l'exchange
+   * @param {string} pair - Paire de trading
+   * @param {number|null} timestamp - Timestamp spécifique ou null pour le plus récent
+   * @returns {Object|null} Données de liquidité ou null
+   */
+  async getLiquidityData(exchange, pair, timestamp = null) {
+    if (!this.influx) {
+      throw new Error('InfluxDB not connected')
+    }
+
+    let query
+    if (timestamp) {
+      query = `
+        SELECT * FROM liquidity_sums 
+        WHERE exchange = '${exchange.toUpperCase()}' 
+        AND pair = '${pair.toLowerCase()}' 
+        AND time = ${timestamp}ms
+        ORDER BY time DESC 
+        LIMIT 1
+      `
+    } else {
+      query = `
+        SELECT * FROM liquidity_sums 
+        WHERE exchange = '${exchange.toUpperCase()}' 
+        AND pair = '${pair.toLowerCase()}' 
+        ORDER BY time DESC 
+        LIMIT 1
+      `
+    }
+
+    try {
+      const results = await this.influx.query(query)
+      
+      if (results.length > 0) {
+        const data = results[0]
+        
+        // Générer les pourcentages supportés (0.5% à 30% par 0.5%)
+        const supportedPercentages = []
+        for (let i = 0.5; i <= 30; i += 0.5) {
+          supportedPercentages.push(i)
+        }
+        
+        // Convertir les noms de champs InfluxDB vers les noms API
+        const apiData = {
+          exchange: exchange.toUpperCase(),
+          pair: pair.toLowerCase(),
+          timestamp: new Date(data.time).toISOString(),
+          source: 'influxdb',
+          supported_percentages: supportedPercentages,
+          time: new Date(data.time).toISOString(),
+          bid_sum_total: data.bid_sum_total || 0,
+          ask_sum_total: data.ask_sum_total || 0,
+          mid_price: data.mid_price || 0
+        }
+        
+        // Convertir tous les pourcentages (de InfluxDB vers API)
+        for (const percent of supportedPercentages) {
+          const fieldSuffix = percent.toString().replace('.', '_') + 'pct'
+          const influxBidKey = `bid_sum_${fieldSuffix}`
+          const influxAskKey = `ask_sum_${fieldSuffix}`
+          
+          const apiBidKey = `bid_sum_${percent}pct`
+          const apiAskKey = `ask_sum_${percent}pct`
+          
+          apiData[apiBidKey] = data[influxBidKey] || 0
+          apiData[apiAskKey] = data[influxAskKey] || 0
+        }
+        
+        return apiData
+      }
+      
+      return null
+    } catch (error) {
+      console.error(`[InfluxDB] Error querying liquidity data:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Récupère l'historique des données de liquidité
+   * @param {string} exchange - Nom de l'exchange
+   * @param {string} pair - Paire de trading
+   * @param {number} minutes - Nombre de minutes d'historique
+   * @param {number|null} percent - Pourcentage spécifique ou null pour total
+   * @returns {Object} Données historiques
+   */
+  async getLiquidityHistory(exchange, pair, minutes, percent = null) {
+    // Convertir les noms de champs pour InfluxDB (remplacer . par _)
+    let bidField, askField
+    if (percent) {
+      const fieldSuffix = percent.toString().replace('.', '_') + 'pct'
+      bidField = `bid_sum_${fieldSuffix}`
+      askField = `ask_sum_${fieldSuffix}`
+    } else {
+      bidField = 'bid_sum_total'
+      askField = 'ask_sum_total'
+    }
+    
+    const query = `
+      SELECT time, ${bidField}, ${askField} 
+      FROM liquidity_sums 
+      WHERE exchange = '${exchange.toUpperCase()}' 
+      AND pair = '${pair.toLowerCase()}' 
+      AND time >= now() - ${minutes}m 
+      ORDER BY time ASC
+    `
+    
+    console.log(`[InfluxDB] Querying ${minutes}min history for ${exchange}:${pair}${percent ? ` (${percent}%)` : ''}`)
+    
+    try {
+      const results = await this.influx.query(query)
+      
+      const data = results.map(r => ({
+        timestamp: r.time,
+        bid_sum: r[bidField] || 0,
+        ask_sum: r[askField] || 0
+      }))
+      
+      console.log(`[InfluxDB] Found ${data.length} history points for ${exchange}:${pair}`)
+      
+      return {
+        data: data,
+        total_points: data.length
+      }
+    } catch (error) {
+      console.error(`[InfluxDB] Error querying history:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Nettoie les anciennes données de liquidité
+   * @param {number} threshold - Timestamp seuil (données plus anciennes supprimées)
+   * @returns {number} Nombre d'enregistrements supprimés
+   */
+  async cleanOldLiquidityData(threshold) {
+    if (!this.influx) {
+      return 0
+    }
+
+    try {
+      const query = `DELETE FROM liquidity_sums WHERE time < ${threshold}ms`
+      
+      await this.influx.query(query)
+      console.log(`[InfluxDB] Cleaned liquidity data older than ${new Date(threshold).toISOString()}`)
+      
+      return 1 // InfluxDB ne retourne pas le nombre exact
+    } catch (error) {
+      console.error(`[InfluxDB] Error cleaning old liquidity data:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtient les pourcentages supportés
+   * @returns {Array} Liste des pourcentages supportés
+   */
+  getSupportedPercentages() {
+    const percentages = []
+    for (let i = 0.5; i <= 30; i += 0.5) {
+      percentages.push(i)
+    }
+    return percentages
+  }
+
+  /**
+   * Récupère les données de liquidité pour un timestamp spécifique
+   * @param {string} exchange - Nom de l'exchange
+   * @param {string} pair - Paire de trading
+   * @param {number} timestamp - Timestamp en millisecondes
+   * @returns {Object|null} Données de liquidité les plus proches du timestamp
+   */
+  async getLiquidityDataByTimestamp(exchange, pair, timestamp) {
+    if (!this.influx) {
+      return null
+    }
+
+    const query = `
+      SELECT * FROM liquidity_sums 
+      WHERE exchange = '${exchange.toUpperCase()}' 
+      AND pair = '${pair.toLowerCase()}' 
+      AND time <= ${timestamp}ms
+      ORDER BY time DESC 
+      LIMIT 1
+    `
+
+    try {
+      const results = await this.influx.query(query)
+      
+      if (results.length > 0) {
+        const data = results[0]
+        
+        // Générer les pourcentages supportés (0.5% à 30% par 0.5%)
+        const supportedPercentages = []
+        for (let i = 0.5; i <= 30; i += 0.5) {
+          supportedPercentages.push(i)
+        }
+        
+        // Convertir les noms de champs InfluxDB vers les noms API
+        const liquidityData = {}
+        
+        // Ajouter les totaux
+        liquidityData.bid_sum_total = data.bid_sum_total || 0
+        liquidityData.ask_sum_total = data.ask_sum_total || 0
+        liquidityData.mid_price = data.mid_price || 0
+        
+        // Convertir tous les pourcentages (de InfluxDB vers format renderer.bar)
+        const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
+        for (const percent of supportedPercentages) {
+          const fieldSuffix = percent.toString().replace('.', '_') + 'pct'
+          const influxBidKey = `bid_sum_${fieldSuffix}`
+          const influxAskKey = `ask_sum_${fieldSuffix}`
+          
+          // Format pour renderer.bar : btcusdt_bid_sum_30pct
+          const rendererBidKey = `${marketPrefix}_bid_sum_${percent}pct`
+          const rendererAskKey = `${marketPrefix}_ask_sum_${percent}pct`
+          
+          liquidityData[rendererBidKey] = data[influxBidKey] || 0
+          liquidityData[rendererAskKey] = data[influxAskKey] || 0
+        }
+        
+        return liquidityData
+      }
+      
+      return null
+    } catch (error) {
+      console.error(`[InfluxDB] Error querying liquidity data by timestamp:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Récupère les données de liquidité pour une plage de timestamps
+   * @param {string} exchange - Nom de l'exchange
+   * @param {string} pair - Paire de trading
+   * @param {number} fromTimestamp - Timestamp de début
+   * @param {number} toTimestamp - Timestamp de fin
+   * @returns {Array} Données de liquidité pour la plage
+   */
+  async getLiquidityDataByRange(exchange, pair, fromTimestamp, toTimestamp) {
+    if (!this.influx) {
+      return []
+    }
+
+    const query = `
+      SELECT * FROM liquidity_sums 
+      WHERE exchange = '${exchange.toUpperCase()}' 
+      AND pair = '${pair.toLowerCase()}' 
+      AND time >= ${fromTimestamp}ms 
+      AND time <= ${toTimestamp}ms
+      ORDER BY time ASC
+    `
+
+    try {
+      const results = await this.influx.query(query)
+      
+      // Générer les pourcentages supportés (0.5% à 30% par 0.5%)
+      const supportedPercentages = []
+      for (let i = 0.5; i <= 30; i += 0.5) {
+        supportedPercentages.push(i)
+      }
+      
+      const processedResults = []
+      const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
+      
+      for (const data of results) {
+        const liquidityData = {
+          timestamp: new Date(data.time).getTime(),
+          bid_sum_total: data.bid_sum_total || 0,
+          ask_sum_total: data.ask_sum_total || 0,
+          mid_price: data.mid_price || 0
+        }
+        
+        // Convertir tous les pourcentages
+        for (const percent of supportedPercentages) {
+          const fieldSuffix = percent.toString().replace('.', '_') + 'pct'
+          const influxBidKey = `bid_sum_${fieldSuffix}`
+          const influxAskKey = `ask_sum_${fieldSuffix}`
+          
+          // Format pour renderer.bar : btcusdt_bid_sum_30pct
+          const rendererBidKey = `${marketPrefix}_bid_sum_${percent}pct`
+          const rendererAskKey = `${marketPrefix}_ask_sum_${percent}pct`
+          
+          liquidityData[rendererBidKey] = data[influxBidKey] || 0
+          liquidityData[rendererAskKey] = data[influxAskKey] || 0
+        }
+        
+        processedResults.push(liquidityData)
+      }
+      
+      return processedResults
+    } catch (error) {
+      console.error(`[InfluxDB] Error querying liquidity data by range:`, error)
+      return []
+    }
   }
 }
 

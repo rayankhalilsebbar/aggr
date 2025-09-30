@@ -22,3 +22,6 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+aggr-server/docker/data/
+zLiq/
+zOB/

@@ -110,6 +110,12 @@ function normalizeCommonVariables(input, indicatorId) {
     'renderer.series[series[$1].id]'
   )
 
+  // Transform liquidity variables with market prefixes (btcusdt_bid_sum_1pct, ethusdt_ask_sum_2_5pct, etc.)
+  input = input.replace(
+    /([^.]|^)\b(btcusdt|ethusdt)_(bid_sum|ask_sum)_(\d+(?:_\d+)?)pct\b/gi,
+    '$1renderer.bar.$2_$3_$4pct'
+  )
+
   return input
 }
 

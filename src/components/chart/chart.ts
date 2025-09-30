@@ -147,6 +147,18 @@ export default class Chart {
   private _timeToRecycle: number
   private _recycleTimeout: number
 
+  // Cache liquidité temps réel
+  liquidityCache = {}
+  liquidityUpdateInterval: NodeJS.Timer | null = null
+  
+  // Cache historique 24h (1440 valeurs par variable)
+  liquidityHistoryCache = new Map() // Key = variable name, Value = array of 1440 values
+  liquidityHistoryUpdateInterval: NodeJS.Timer | null = null
+
+  // Cache historique par timestamp
+  liquidityHistoricalCache = new Map() // Key = timestamp, Value = liquidityData
+  liquidityPreloadedRanges = new Set() // Key = "fromTimestamp-toTimestamp"
+
   constructor(id: string, chartElement: HTMLElement) {
     this.paneId = id
     this.chartElement = chartElement
@@ -160,6 +172,10 @@ export default class Chart {
   initialize() {
     this.createChart()
     this.setupQueue()
+    
+    // Initialiser le cache de liquidité
+    this.startLiquidityUpdates()
+    this.initializeLiquidityHistoryCache()
     this.setupRecycle()
     this.setTimeframe(store.state[this.paneId].timeframe)
     this.setTimezoneOffset(store.state.settings.timezoneOffset)
@@ -1272,11 +1288,22 @@ export default class Chart {
    * @param {string} indicatorId
    * @param {boolean} silent
    */
-  renderBars(bars: Bar[], indicatorId, silent?: boolean) {
+  async renderBars(bars: Bar[], indicatorId, silent?: boolean) {
     mergeBarsWithActiveBars(bars, this.activeRenderer)
 
     if (!bars.length) {
       return
+    }
+
+    // Pré-charger les données de liquidité pour la plage de barres
+    if (bars.length > 1) {
+      const fromTimestamp = bars[0].time * 1000 // premier timestamp en ms
+      const toTimestamp = bars[bars.length - 1].time * 1000 // dernier timestamp en ms
+      
+      // Pré-charger en arrière-plan (ne pas attendre)
+      this.preloadLiquidityForRange(fromTimestamp, toTimestamp).catch(error => {
+        console.warn('[RenderBars] Preload failed:', error)
+      })
     }
 
     const {
@@ -1286,7 +1313,7 @@ export default class Chart {
       temporaryRenderer,
       computedSeries,
       indicatorsIds
-    } = this.computeBars(bars, indicatorId)
+    } = await this.computeBars(bars, indicatorId)
 
     this.clearPriceLines(indicatorsIds)
 
@@ -1322,7 +1349,7 @@ export default class Chart {
     }
   }
 
-  computeBars(bars, indicatorId?) {
+  async computeBars(bars, indicatorId?) {
     let indicatorsIds
     let drawReferences = false
 
@@ -1433,6 +1460,10 @@ export default class Chart {
         temporaryRenderer.bar.lbuy += bar.lbuy
         temporaryRenderer.bar.lsell += bar.lsell
       }
+
+      // Injecter les données de liquidité historiques par timestamp
+      const liquidityData = await this.getLiquidityForTimestamp(temporaryRenderer.timestamp * 1000) // timestamp en ms
+      Object.assign(temporaryRenderer.bar, liquidityData)
 
       temporaryRenderer.sources[marketKey] = cloneSourceBar(bar)
       temporaryRenderer.sources[marketKey].empty = false
@@ -2801,7 +2832,7 @@ export default class Chart {
       }
     }
 
-    const { computedSeries } = this.computeBars(
+    const { computedSeries } = await this.computeBars(
       this.chartCache.chunks.length
         ? this.chartCache.chunks.reduce(
             (bars, chunk) => bars.concat(chunk.bars),
@@ -2881,5 +2912,285 @@ export default class Chart {
     this.axis = axis
 
     return this.axis
+  }
+
+  /**
+   * Démarre les mises à jour du cache de liquidité (toutes les 10 secondes)
+   */
+  startLiquidityUpdates() {
+    this.liquidityUpdateInterval = setInterval(() => {
+      this.updateLiquidityCache()
+    }, 10000) // 10 secondes
+  }
+
+  /**
+   * Met à jour le cache de liquidité temps réel
+   */
+  async updateLiquidityCache() {
+    const markets = ['BINANCE:BTCUSDT', 'BINANCE:ETHUSDT']
+    
+    for (const market of markets) {
+      try {
+        const [exchange, pair] = market.split(':')
+        const response = await fetch(`http://localhost:3000/liquidity/${exchange}/${pair}`)
+        if (response.ok) {
+          const data = await response.json()
+          this.liquidityCache[market] = data
+        }
+      } catch (error) {
+        console.error(`[LiquidityCache] Error fetching ${market}:`, error)
+      }
+    }
+  }
+
+  /**
+   * Initialise le cache historique de liquidité (24h)
+   */
+  async initializeLiquidityHistoryCache() {
+    console.log('[LiquidityHistory] Initializing 24h history cache...')
+    
+    try {
+      // Fetch bulk 24h data from new endpoint
+      const response = await fetch('http://localhost:3000/liquidity-bulk-history/24')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const rawData = await response.json()
+      console.log(`[LiquidityHistory] Loaded ${rawData.length} historical records`)
+      
+      // Organize data by variable name
+      const organizedData = new Map()
+      
+      rawData.forEach(record => {
+        const exchange = record.exchange
+        const pair = record.pair
+        const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
+        const timestamp = new Date(record.time).getTime()
+        
+        // Process all liquidity fields
+        Object.keys(record).forEach(key => {
+          if (key.startsWith('bid_sum_') || key.startsWith('ask_sum_')) {
+            // Convert InfluxDB style (bid_sum_0_5pct) to API style (bid_sum_0.5pct)
+            const apiStyleKey = key.replace(/_(\d+)pct$/, '.$1pct').replace(/_(\d+)_(\d+)pct$/, '.$1$2pct')
+            const variableName = `${marketPrefix}_${apiStyleKey}`
+            
+            if (!organizedData.has(variableName)) {
+              organizedData.set(variableName, [])
+            }
+            
+            organizedData.get(variableName).push({
+              timestamp,
+              value: record[key] || 0
+            })
+          }
+        })
+      })
+      
+      // Convert to fixed-size arrays (1440 values = 24h * 60min)
+      for (const [variableName, dataPoints] of organizedData) {
+        // Sort by timestamp
+        dataPoints.sort((a, b) => a.timestamp - b.timestamp)
+        
+        // Create fixed array of 1440 values
+        const fixedArray = new Array(1440).fill(0)
+        
+        // Fill with actual data (most recent 1440 points)
+        const recentPoints = dataPoints.slice(-1440)
+        recentPoints.forEach((point, index) => {
+          fixedArray[index] = point.value
+        })
+        
+        this.liquidityHistoryCache.set(variableName, fixedArray)
+      }
+      
+      console.log(`[LiquidityHistory] Cached ${this.liquidityHistoryCache.size} variables with 1440 values each`)
+      
+      // Start periodic updates every minute
+      this.liquidityHistoryUpdateInterval = setInterval(() => {
+        this.updateLiquidityHistoryCache()
+      }, 60000) // 1 minute
+      
+    } catch (error) {
+      console.error('[LiquidityHistory] Failed to initialize cache:', error)
+    }
+  }
+
+  /**
+   * Met à jour le cache historique de liquidité
+   */
+  async updateLiquidityHistoryCache() {
+    console.log('[LiquidityHistory] Updating cache with latest values...')
+    
+    const markets = ['BINANCE:BTCUSDT', 'BINANCE:ETHUSDT']
+    
+    for (const market of markets) {
+      try {
+        const [exchange, pair] = market.split(':')
+        const response = await fetch(`http://localhost:3000/liquidity/${exchange}/${pair}`)
+        if (response.ok) {
+          const data = await response.json()
+          const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
+          
+          // Update only the last value (index 1439) of each historical array
+          Object.keys(data).forEach(key => {
+            if (key.startsWith('bid_sum_') || key.startsWith('ask_sum_')) {
+              // Convert InfluxDB style to API style if needed
+              const apiStyleKey = key.replace(/_(\d+)pct$/, '.$1pct').replace(/_(\d+)_(\d+)pct$/, '.$1$2pct')
+              const variableName = `${marketPrefix}_${apiStyleKey}`
+              
+              if (this.liquidityHistoryCache.has(variableName)) {
+                const historyArray = this.liquidityHistoryCache.get(variableName)
+                // Shift array left and add new value at the end
+                historyArray.shift()
+                historyArray.push(data[key] || 0)
+              }
+            }
+          })
+        }
+      } catch (error) {
+        console.error(`[LiquidityHistory] Error updating ${market}:`, error)
+      }
+    }
+  }
+
+  /**
+   * Obtient les données de liquidité pour le renderer
+   */
+  getLiquidityForRenderer() {
+    const liquidityData = {}
+    
+    // PRIORITÉ 1: Add historical liquidity arrays (1440 values each)
+    for (const [variableName, historyArray] of this.liquidityHistoryCache) {
+      liquidityData[variableName] = [...historyArray] // Clone the array
+    }
+    
+    // PRIORITÉ 2: Add current values SEULEMENT si pas d'array historique
+    for (const market in this.liquidityCache) {
+      const data = this.liquidityCache[market]
+      if (data) {
+        const [exchange, pair] = market.split(':')
+        const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
+        
+        Object.keys(data).forEach(key => {
+          if (key.startsWith('bid_sum_') || key.startsWith('ask_sum_')) {
+            const variableName = `${marketPrefix}_${key}`
+            
+            // N'ajouter la valeur actuelle QUE si pas d'array historique
+            if (!liquidityData[variableName]) {
+              liquidityData[variableName] = data[key] || 0
+            }
+          }
+        })
+      }
+    }
+    
+    return liquidityData
+  }
+
+  /**
+   * Récupère les données de liquidité pour un timestamp spécifique
+   * @param {number} timestamp - Timestamp en millisecondes
+   * @returns {Object} Données de liquidité pour ce timestamp
+   */
+  async getLiquidityForTimestamp(timestamp) {
+    // Cache par blocs de 5 minutes pour optimiser
+    const cacheKey = Math.floor(timestamp / (5 * 60 * 1000)) * (5 * 60 * 1000)
+    
+    // Vérifier le cache d'abord
+    if (this.liquidityHistoricalCache.has(cacheKey)) {
+      return this.liquidityHistoricalCache.get(cacheKey)
+    }
+    
+    try {
+      // Récupérer depuis l'API
+      const response = await fetch(`http://localhost:3000/liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=BTCUSDT`)
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Mettre en cache avec la clé optimisée
+        this.liquidityHistoricalCache.set(cacheKey, data)
+        
+        // Aussi pour ETHUSDT si pas déjà fait
+        try {
+          const ethResponse = await fetch(`http://localhost:3000/liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=ETHUSDT`)
+          if (ethResponse.ok) {
+            const ethData = await ethResponse.json()
+            // Fusionner les données ETH avec les données BTC
+            Object.assign(data, ethData)
+            this.liquidityHistoricalCache.set(cacheKey, data)
+          }
+        } catch (ethError) {
+          console.warn('[LiquidityTimestamp] Failed to fetch ETHUSDT data:', ethError)
+        }
+        
+        return data
+      } else {
+        console.warn(`[LiquidityTimestamp] API returned ${response.status} for timestamp ${timestamp}`)
+        return {}
+      }
+    } catch (error) {
+      console.error(`[LiquidityTimestamp] Error fetching data for timestamp ${timestamp}:`, error)
+      return {}
+    }
+  }
+
+  /**
+   * Pré-charge les données de liquidité pour une plage de temps
+   * @param {number} fromTimestamp - Timestamp de début
+   * @param {number} toTimestamp - Timestamp de fin
+   */
+  async preloadLiquidityForRange(fromTimestamp, toTimestamp) {
+    const rangeKey = `${fromTimestamp}-${toTimestamp}`
+    
+    // Éviter de recharger la même plage
+    if (this.liquidityPreloadedRanges.has(rangeKey)) {
+      return
+    }
+    
+    console.log(`[LiquidityPreload] Loading range: ${new Date(fromTimestamp).toISOString()} to ${new Date(toTimestamp).toISOString()}`)
+    
+    try {
+      // Charger BTCUSDT et ETHUSDT en parallèle
+      const [btcResponse, ethResponse] = await Promise.all([
+        fetch(`http://localhost:3000/liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=BTCUSDT`),
+        fetch(`http://localhost:3000/liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=ETHUSDT`)
+      ])
+      
+      const btcData = btcResponse.ok ? await btcResponse.json() : []
+      const ethData = ethResponse.ok ? await ethResponse.json() : []
+      
+      // Organiser par timestamp et fusionner BTC + ETH
+      const dataByTimestamp = new Map()
+      
+      // Traiter les données BTC
+      btcData.forEach(record => {
+        const cacheKey = Math.floor(record.timestamp / (5 * 60 * 1000)) * (5 * 60 * 1000)
+        dataByTimestamp.set(cacheKey, { ...record })
+      })
+      
+      // Fusionner les données ETH
+      ethData.forEach(record => {
+        const cacheKey = Math.floor(record.timestamp / (5 * 60 * 1000)) * (5 * 60 * 1000)
+        if (dataByTimestamp.has(cacheKey)) {
+          Object.assign(dataByTimestamp.get(cacheKey), record)
+        } else {
+          dataByTimestamp.set(cacheKey, { ...record })
+        }
+      })
+      
+      // Peupler le cache
+      for (const [cacheKey, data] of dataByTimestamp) {
+        this.liquidityHistoricalCache.set(cacheKey, data)
+      }
+      
+      // Marquer la plage comme préchargée
+      this.liquidityPreloadedRanges.add(rangeKey)
+      
+      console.log(`[LiquidityPreload] Cached ${dataByTimestamp.size} timestamp blocks for range`)
+      
+    } catch (error) {
+      console.error('[LiquidityPreload] Error preloading range:', error)
+    }
   }
 }
