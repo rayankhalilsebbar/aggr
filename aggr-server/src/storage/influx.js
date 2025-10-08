@@ -68,9 +68,10 @@ class InfluxStorage {
             measurement: 'orderbook',
             fields: {
               price: Influx.FieldType.FLOAT,
-              size: Influx.FieldType.FLOAT
+              size: Influx.FieldType.FLOAT,
+              side: Influx.FieldType.STRING
             },
-            tags: ['market', 'side']
+            tags: ['market']
           },
           {
             measurement: 'liquidity_sums',
@@ -1254,8 +1255,8 @@ class InfluxStorage {
       const priceBasedTimestamp = Math.floor(bid.price * 1000)
       points.push({
         measurement: 'orderbook',
-        tags: { market, side: 'bid' },
-        fields: { price: bid.price, size: bid.size },
+        tags: { market },
+        fields: { price: bid.price, size: bid.size, side: 'bid' },
         timestamp: priceBasedTimestamp
       })
     })
@@ -1264,9 +1265,9 @@ class InfluxStorage {
     orderBookData.asks.forEach((ask) => {
       const priceBasedTimestamp = Math.floor(ask.price * 1000)
       points.push({
-        measurement: 'orderbook', 
-        tags: { market, side: 'ask' },
-        fields: { price: ask.price, size: ask.size },
+        measurement: 'orderbook',
+        tags: { market },
+        fields: { price: ask.price, size: ask.size, side: 'ask' },
         timestamp: priceBasedTimestamp
       })
     })

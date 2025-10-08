@@ -228,29 +228,22 @@ class Binance extends Exchange {
       return
     }
     
-    // Filtrer les ordres avec size = 0 (suppression)
-    const validBids = data.b.filter(([price, size]) => parseFloat(size) > 0)
-    const validAsks = data.a.filter(([price, size]) => parseFloat(size) > 0)
-    
-    if (validBids.length === 0 && validAsks.length === 0) {
-      return
-    }
-    
+    // Ne plus filtrer - accepter tous les updates (y compris size=0)
     const orderBookUpdate = {
       exchange: this.id,
       pair: pair,
       timestamp: Date.now(),
-      bids: validBids.map(([price, size]) => ({
+      bids: data.b.map(([price, size]) => ({
         price: parseFloat(price),
         size: parseFloat(size)
       })),
-      asks: validAsks.map(([price, size]) => ({
+      asks: data.a.map(([price, size]) => ({
         price: parseFloat(price),
         size: parseFloat(size)
       }))
     }
     
-    // Stocker dans InfluxDB
+    // Stocker dans InfluxDB (même si vide, pour marquer les suppressions)
     if (this.influxStorage && this.influxStorage.writeOrderBook) {
       try {
         await this.influxStorage.writeOrderBook(orderBookUpdate)
