@@ -1301,10 +1301,12 @@ export default class Chart {
       const fromTimestamp = bars[0].time * 1000 // premier timestamp en ms
       const toTimestamp = bars[bars.length - 1].time * 1000 // dernier timestamp en ms
       
-      // Pré-charger en arrière-plan (ne pas attendre)
-      this.preloadLiquidityForRange(fromTimestamp, toTimestamp).catch(error => {
+      // Pré-charger et attendre que les données soient disponibles
+      try {
+        await this.preloadLiquidityForRange(fromTimestamp, toTimestamp)
+      } catch (error) {
         console.warn('[RenderBars] Preload failed:', error)
-      })
+      }
     }
 
     const {
@@ -2916,12 +2918,12 @@ export default class Chart {
   }
 
   /**
-   * Démarre les mises à jour du cache de liquidité (toutes les 10 secondes)
+   * Démarre les mises à jour du cache de liquidité (toutes les 60 secondes)
    */
   startLiquidityUpdates() {
     this.liquidityUpdateInterval = setInterval(() => {
       this.updateLiquidityCache()
-    }, 10000) // 10 secondes
+    }, 60000) // 60 secondes - aligné avec la fréquence d'écriture du serveur
   }
 
   /**
@@ -3095,6 +3097,11 @@ export default class Chart {
    * @returns {Object} Données de liquidité pour ce timestamp
    */
   async getLiquidityForTimestamp(timestamp) {
+    // Éviter les requêtes pour des timestamps futurs
+    if (timestamp > Date.now()) {
+      return {}
+    }
+    
     // Cache par blocs de 5 minutes pour optimiser
     const cacheKey = Math.floor(timestamp / (5 * 60 * 1000)) * (5 * 60 * 1000)
     
