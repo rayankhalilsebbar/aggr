@@ -20,7 +20,8 @@ import {
   isOddTimeframe,
   formatBytes,
   displayCanvasInPopup,
-  sleep
+  sleep,
+  getApiUrl
 } from '@/utils/helpers'
 import { waitForStateMutation } from '@/utils/store'
 import { joinRgba, splitColorCode } from '@/utils/colors'
@@ -2932,7 +2933,7 @@ export default class Chart {
     for (const market of markets) {
       try {
         const [exchange, pair] = market.split(':')
-        const response = await fetch(`http://localhost:3000/liquidity/${exchange}/${pair}`)
+        const response = await fetch(getApiUrl(`liquidity/${exchange}/${pair}`))
         if (response.ok) {
           const data = await response.json()
           this.liquidityCache[market] = data
@@ -2951,7 +2952,7 @@ export default class Chart {
     
     try {
       // Fetch bulk 24h data from new endpoint
-      const response = await fetch('http://localhost:3000/liquidity-bulk-history/24')
+      const response = await fetch(getApiUrl('liquidity-bulk-history/24'))
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
@@ -3027,7 +3028,7 @@ export default class Chart {
     for (const market of markets) {
       try {
         const [exchange, pair] = market.split(':')
-        const response = await fetch(`http://localhost:3000/liquidity/${exchange}/${pair}`)
+        const response = await fetch(getApiUrl(`liquidity/${exchange}/${pair}`))
         if (response.ok) {
           const data = await response.json()
           const marketPrefix = pair.toLowerCase() // btcusdt, ethusdt
@@ -3104,7 +3105,7 @@ export default class Chart {
     
     try {
       // Récupérer depuis l'API
-      const response = await fetch(`http://localhost:3000/liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=BTCUSDT`)
+      const response = await fetch(getApiUrl(`liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=BTCUSDT`))
       if (response.ok) {
         const data = await response.json()
         
@@ -3113,7 +3114,7 @@ export default class Chart {
         
         // Aussi pour ETHUSDT si pas déjà fait
         try {
-          const ethResponse = await fetch(`http://localhost:3000/liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=ETHUSDT`)
+          const ethResponse = await fetch(getApiUrl(`liquidity-by-timestamp/${timestamp}?exchange=BINANCE&pair=ETHUSDT`))
           if (ethResponse.ok) {
             const ethData = await ethResponse.json()
             // Fusionner les données ETH avec les données BTC
@@ -3153,8 +3154,8 @@ export default class Chart {
     try {
       // Charger BTCUSDT et ETHUSDT en parallèle
       const [btcResponse, ethResponse] = await Promise.all([
-        fetch(`http://localhost:3000/liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=BTCUSDT`),
-        fetch(`http://localhost:3000/liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=ETHUSDT`)
+        fetch(getApiUrl(`liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=BTCUSDT`)),
+        fetch(getApiUrl(`liquidity-bulk-range/${fromTimestamp}/${toTimestamp}?exchange=BINANCE&pair=ETHUSDT`))
       ])
       
       const btcData = btcResponse.ok ? await btcResponse.json() : []
